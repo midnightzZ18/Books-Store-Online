@@ -1,10 +1,11 @@
-<?php include'condb.php'?>
+<?php include 'condb.php'?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Online Book Store</title>
+    <link rel="icon" type="image/png" href="img/logo-web.png">
    <!-- Bootstrap CSS -->
    <link href="bootstrap/css/bootstrap.min.css" rel="stylesheet" >
     <!-- Option 1: Bootstrap Bundle with Popper -->
@@ -27,7 +28,7 @@ $row=mysqli_fetch_array($result);
          </div>
         <div class="col-md-6">
             <br>
-            ID: <?=$row['book_id']?> <br>
+             <br>
             <h5 class="text-success"><?=$row['book_name']?> </h5>
             ประเภทสินค้า: <?=$row['type_name']?> <br>
             รายละเอียด: <?=$row['detail']?> <br>

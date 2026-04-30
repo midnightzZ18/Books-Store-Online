@@ -1,48 +1,44 @@
 <?php
-
-@include 'condb.php';
-
 session_start();
+@include 'condb.php';
+$error = '';
 
 if (isset($_POST['submit'])) {
+    $user_name = trim($_POST['user_name'] ?? '');
+    $password  = $_POST['password'] ?? '';
 
-    $user_name = mysqli_real_escape_string($conn, $_POST['user_name']);
-    $pass = md5($_POST['password']);
-    $user_type = isset($_POST['user_type']) ? $_POST['user_type'] : ''; // Add this line to prevent the warning
+    if (empty($user_name) || empty($password)) {
+        $error = 'กรุณากรอก Username และ Password';
+    } else {
+        $stmt = mysqli_prepare($conn, "SELECT * FROM user_form WHERE user_name = ? LIMIT 1");
+        mysqli_stmt_bind_param($stmt, 's', $user_name);
+        mysqli_stmt_execute($stmt);
+        $result = mysqli_stmt_get_result($stmt);
+        $row = mysqli_fetch_assoc($result);
+        mysqli_stmt_close($stmt);
 
-    $select = "SELECT * FROM user_form WHERE user_name = '$user_name' && password = '$pass' ";
+        if ($row) {
+            $db_password = $row['password'];
+            $login_success = false;
+            if (password_verify($password, $db_password) || md5($password) === $db_password) {
+                $login_success = true;
+            }
 
-
-    $result = mysqli_query($conn, $select);
-
-    if(mysqli_num_rows($result) > 0){
-
-        $row = mysqli_fetch_array($result);
-
-        // Add a check for the 'user_type' key to prevent the warning
-        if (isset($row['user_type'])) {
-            if ($row['user_type'] == 'admin') {
-                $_SESSION['admin_name'] = $row['name'];
-                header('location:admin.php');
-            } elseif ($row['user_type'] == 'user') {
+            if ($login_success) {
                 $_SESSION['user_name'] = $row['user_name'];
-                header('location:shop.php');
-            } elseif ($row['user_type'] == 'ceo') {
-                $_SESSION['admin_name'] = $row['name'];
-                header('location:dashboard.php');
-            } elseif ($row['user_type'] == 'delivery') {
-                $_SESSION['admin_name'] = $row['user_name'];
-                header('location:express.php');
+                $_SESSION['user_type'] = $row['user_type'];
+                if ($row['user_type'] == 'admin') {
+                    header('location:admin.php');
+                } else {
+                    header('location:shop.php');
+                }
+            } else {
+                $error = 'Username หรือ Password ไม่ถูกต้อง!';
             }
         } else {
-            // Handle the case when 'user_type' key is not set in the array
-            $error[] = 'User type information not available!';
+            $error = 'ไม่พบผู้ใช้งานนี้ในระบบ!';
         }
-
-    } else {
-        $error[] = 'user_name or password!';
     }
-
 }
 ?>
 
@@ -50,34 +46,86 @@ if (isset($_POST['submit'])) {
 <html lang="en">
 <head>
    <meta charset="UTF-8">
-   <meta http-equiv="X-UA-Compatible" content="IE=edge">
-   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-   <title>Login Form</title>
-   <!-- Custom CSS file link -->
-   <link rel="stylesheet" href="css/style.css?v=9999">
-   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.1/css/all.min.css" integrity="sha384-GLhlTQ8iEWAyH7t8u+J/+6UwL5KOYbAhkbrGIPIf34Mz9gHx2C4D/hRTt8+pR6L4" crossorigin="anonymous">
+   <title>Login - Online Book Store</title>
+   <link rel="icon" type="image/png" href="img/logo-web.png">
+   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+   <style>
+      body {
+         background: linear-gradient(135deg, #FFCCCC 0%, #ffe4e1 100%);
+         height: 100vh;
+         display: flex;
+         align-items: center;
+         justify-content: center;
+         font-family: 'Kanit', sans-serif;
+      }
+      .form-container {
+         background: #fff;
+         padding: 30px;
+         border-radius: 20px; /* มนกลม */
+         box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+         width: 100%;
+         max-width: 400px;
+      }
+      .form-container h3 { text-align: center; color: #ad1457; margin-bottom: 20px; }
 
+      .text-muted {
+            text-align: center;
+            color: #ff80ab;
+            margin-bottom: 30px;
+      }
+      .text-label {
+        display: block;
+        text-align: left;
+        color: #666; /* ปรับจาก #f เพื่อให้อ่านออก */
+        font-size: 0.9rem;
+        margin-bottom: 5px;
+        margin-left: 15px; /* ขยับให้ตรงกับช่องกรอกที่มนกลม */
+    }
+      /* ปรับช่องกรอกให้มนกลม */
+      .form-container input[type="text"],
+      .form-container input[type="password"] {
+         width: 100%;
+         padding: 12px 20px;
+         margin: 10px 0;
+         border: 1px solid #ddd;
+         border-radius: 30px; /* ทำให้มนกลมแบบ Pill shape */
+         box-sizing: border-box;
+      }
+
+      /* ปรับปุ่มให้มนกลม */
+      .form-btn {
+         background: #ff80ab;
+         color: white;
+         border: none;
+         padding: 12px;
+         width: 100%;
+         border-radius: 30px; /* ทำให้มนกลม */
+         font-weight: bold;
+         cursor: pointer;
+         transition: 0.3s;
+         margin-top: 10px;
+      }
+      .form-btn:hover { background: #f50057; }
+      .error-msg { color: red; display: block; text-align: center; margin-bottom: 10px; }
+   </style>
 </head>
 <body>
+
 <div class="form-container">
    <form action="" method="post">
+    <div class="login-card">
+   <div class="text-center mb-4">
+      <h3 class="fw-bold" style="color: #ad1457;">🌸 BOOK STORE</h3>
+      <p class="text-muted">ยินดีต้อนรับ เข้าสู่ระบบ</p>
+   </div>
+      <?php if(!empty($error)) echo '<span class="error-msg">'.$error.'</span>'; ?>
+      <label class="text-label">Username</label>
+      <input type="text" name="user_name" required placeholder="กรอกชื่อผู้ใช้">
+      <label class="text-label">Password</label>
+      <input type="password" name="password" required placeholder="กรอกรหัสผ่าน">
       
-      <h3>เข้าสู่ระบบ</h3>
-      <?php
-      if (isset($error)) {
-         foreach ($error as $error) {
-            echo '<span class="error-msg">' . $error . '</span>';
-         };
-      };
-      ?>
-        <div style="position: relative;">
-            <input type="text" name="user_name" required placeholder="Username" style="padding-left: 40px;"> 
-            <img src="img/account.png" width="40px" height="40" style="position: absolute; top: 100%; transform: translateY(-297%); left: 140px;">
-            <input type="password" name="password" required placeholder="Password" style="padding-left: 40px;"> 
-            <img src="img/padlock.png" width="40px" height="40" style="position: absolute; top: 100%; transform: translateY(-132%); left: 140px;">
-        </div>
-        <input type="submit" name="submit" value="ยืนยัน" class="form-btn">
-        <p>ยังไม่ได้สมัครสมาชิก? <a href="register_form.php">สมัคร</a></p>
+      <input type="submit" name="submit" value="เข้าสู่ระบบ" class="form-btn">
+      <p class="text-center mt-3" style="text-align:center;">ยังไม่มีบัญชี? <a href="register_form.php" style="color:#ff80ab;">สมัครสมาชิก</a></p>
    </form>
 </div>
 

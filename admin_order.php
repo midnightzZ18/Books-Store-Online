@@ -3,15 +3,17 @@ include 'condb.php';
 session_start();
 
 // Redirect to login if the user is not logged in
-if (!isset($_SESSION['admin_name'])) {
-    header('location:login_form.php');
-    exit;
+if (!isset($_SESSION['user_name']) || $_SESSION['user_type'] != 'admin') {
+        header('location:login_form.php');
+        exit;
 }
 ?>
 <?php 
 include 'condb.php';
-$sql = "SELECT id, orderID, cus_id, cus_name, provinces, tracking_number,order_status,name_delivery FROM history ORDER BY reg_date DESC";
-$result = mysqli_query($conn, $sql);
+$sql = "SELECT h.id, h.orderID, h.cus_name, h.provinces, h.amphures, 
+               h.districts, h.tracking_number, h.order_status, h.name_delivery 
+        FROM history h 
+        ORDER BY h.reg_date DESC";$result = mysqli_query($conn, $sql);
 
 // Check for errors
 if (!$result) {
@@ -25,10 +27,11 @@ if (!$result) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>รายการสั่งซื้อ</title>
+    <link rel="icon" type="image/png" href="img/logo-web.png">
     <!-- Bootstrap CSS -->
-    <link href="bootstrap/css/bootstrap.min.css" rel="stylesheet" >
-    <!-- Option 1: Bootstrap Bundle with Popper -->
-    <script src="bootstrap/js/bootstrap.bundle.min.js" ></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 </head>
 <body>
 <?php include 'adminmenu.php'; ?>
@@ -61,7 +64,9 @@ if (!$result) {
                         <td><?= $row['id'] ?></td>
                         <td><?= $row['orderID'] ?></td>
                         <td><?= $row['cus_name'] ?></td>
-                        <td><?= $row['provinces'] ?></td>
+                        <td><?= htmlspecialchars($row['provinces']) ?></td>   <!-- จังหวัด -->
+                        <td><?= htmlspecialchars($row['amphures']) ?></td>    <!-- อำเภอ -->
+                        <td><?= htmlspecialchars($row['districts']) ?></td>   <!-- ตำบล -->
                         <td><?= $row['tracking_number'] ?></td>
                         <td>
                             <?php
@@ -80,7 +85,7 @@ if (!$result) {
                         </td>
                         <td><?=  $row['name_delivery'] ?></td>
                         <td>
-                            <a href='admin_orderdetail.php?orderID=<?= $row["orderID"] ?>&user_name=<?= $_SESSION["admin_name"] ?>' class='btn btn-info'>รายละเอียด</a>
+                            <a href='admin_express.php?orderID=<?= $row["orderID"] ?>&user_name=<?= $_SESSION["user_name"] ?>' class='btn btn-info'>รายละเอียด</a>
                         </td>
                     </tr>
                 <?php 

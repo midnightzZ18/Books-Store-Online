@@ -1,13 +1,22 @@
 <?php
-include 'condb.php'; // Connect to the database
+include 'condb.php';
 session_start();
 
-// Redirect to login if the user is not logged in
-if (!isset($_SESSION['admin_name'])) {
+if (!isset($_SESSION['user_name']) || $_SESSION['user_type'] != 'admin') {
     header('location:login_form.php');
     exit;
 }
 
+// --- เริ่มต้นระบบแบ่งหน้า ---
+$limit = 15; 
+$page = isset($_GET['page']) ? (int)$_GET['page'] : 1;
+if ($page < 1) $page = 1;
+$offset = ($page - 1) * $limit;
+
+$result_count = mysqli_query($conn, "SELECT COUNT(id) AS total FROM history");
+$row_count = mysqli_fetch_assoc($result_count);
+$total_pages = ceil($row_count['total'] / $limit);
+// -----------------------
 ?>
 
 <!DOCTYPE html>
@@ -16,96 +25,59 @@ if (!isset($_SESSION['admin_name'])) {
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Order Details</title>
-    <style>
-        body {
-            background-image: url('path/to/your/image.png'); /* Set your desired background image */
-        }
-    </style>
-    <!-- Bootstrap CSS -->
+    <link rel="icon" type="image/png" href="img/logo-web.png">
     <link href="bootstrap/css/bootstrap.min.css" rel="stylesheet">
 </head>
 <body>
-
 <?php include 'adminmenu.php'; ?>
-
 <div class="container mt-5">
-    <div class="alert alert-warning" role="alert" style="text-align:center;">
+    <div class="alert alert-warning text-center" role="alert">
         <h1>ประวัติการขาย</h1>
     </div>
-
-    <div class="order-details">
+    <div class="order-details table-responsive">
         <?php
-        $sql = "SELECT id, orderID, cus_id, cus_name, sex, book_Name, book_id, orderPrice, orderQty, total_price, address, districts, amphures, provinces, reg_date, order_status, tracking_number FROM history";
+        $sql = "SELECT id, orderID, cus_name, book_Name, orderQty, orderPrice, provinces 
+                FROM history ORDER BY id DESC LIMIT $limit OFFSET $offset";
         $result = mysqli_query($conn, $sql);
 
-        // Check if data is found
-        if ($result->num_rows > 0) {
-            echo '<table class="table table-striped">';
-            echo '<thead>';
-            echo '<tr>';
-            echo '<th>ลำดับ</th>';
-            echo '<th>เลข ออเดอร์</th>';
-            echo '<th>ชื่อผู้รับ</th>';
-            echo '<th>ชื่อหนังสือ</th>';
-            echo '<th>จำนวน</th>';
-            echo '<th>ยอดรวม</th>';
-            echo '<th>ที่อยู่</th>';
-            echo '</tr>';
-            echo '</thead>';
-            echo '<tbody>';
-
-            // Initialize a variable to keep track of the current orderID
-            $currentOrderID = null;
-
-            while ($row = $result->fetch_assoc()) {
-                // Check if the orderID has changed
-                if ($row['orderID'] !== $currentOrderID) {
-                    // If yes, close the previous row (if it exists) and start a new row
-                    if ($currentOrderID !== null) {
-                        echo '</td></tr>';
-                    }
-
-                    // Start a new table row for the current orderID
-                    echo '<tr>';
-                    echo '<td>' . $row['id'] . '</td>';
-                    echo '<td>' . $row['orderID'] . '</td>';
-                    echo '<td>' . $row["cus_name"] . '</td>';
-                    echo '<td>' . $row["book_Name"] . '</td>';
-                    echo '<td>' . $row["orderQty"] . '</td>';
-                    echo '<td>' . $row["orderPrice"] . '</td>';
-                    echo '<td>' . $row["provinces"] . '</td>';
-                    
-                    // Update the currentOrderID variable
-                    $currentOrderID = $row['orderID'];
-                } else {
-                    echo '<tr>';
-                    echo '<td></td>';
-                    echo '<td></td>';
-                    echo '<td></td>';
-                    // If the orderID is the same, continue adding columns to the current row
-                    echo '<td>' . $row["book_Name"] . '</td>';
-                    echo '<td>' . $row["orderQty"] . '</td>';
-                    echo '<td>' . $row["orderPrice"] . '</td>';
-                    echo '<td>' . $row["provinces"] . '</td>';
-                }
+        if (mysqli_num_rows($result) > 0) {
+            echo '<table class="table table-striped table-hover">';
+            echo '<thead class="table-dark"><tr><th>ลำดับ</th><th>เลขที่ออเดอร์</th><th>ชื่อผู้รับ</th><th>ชื่อหนังสือ</th><th>จำนวน</th><th>ยอดรวม</th><th>จังหวัด</th></tr></thead><tbody>';
+            while ($row = mysqli_fetch_assoc($result)) {
+                echo "<tr>
+                    <td>{$row['id']}</td>
+                    <td>{$row['orderID']}</td>
+                    <td>{$row['cus_name']}</td>
+                    <td>{$row['book_Name']}</td>
+                    <td>{$row['orderQty']}</td>
+                    <td>".number_format($row['orderPrice'], 2)."</td>
+                    <td>{$row['provinces']}</td>
+                </tr>";
             }
+            echo '</tbody></table>';
 
-            // Close the last row (if it exists)
-            if ($currentOrderID !== null) {
-                echo '</td></tr>';
-            }
-
-            echo '</tbody>';
-            echo '</table>';
+            // แสดง Pagination
+            renderPagination($page, $total_pages);
         } else {
-            echo "No data found in the history table.";
+            echo "<div class='alert alert-info text-center'>ไม่พบข้อมูล</div>";
         }
         ?>
     </div>
-
-    <!-- ... (remaining code) ... -->
-
-    <!-- Bootstrap JS -->
-    <script src="bootstrap/js/bootstrap.bundle.min.js"></script>
+</div>
 </body>
 </html>
+
+<?php
+function renderPagination($page, $total_pages) {
+    if ($total_pages <= 1) return;
+    echo '<nav><ul class="pagination justify-content-center">';
+    $prev = $page - 1;
+    echo '<li class="page-item '.($page <= 1 ? 'disabled':'').'"><a class="page-link" href="?page='.$prev.'">ก่อนหน้า</a></li>';
+    for ($i = 1; $i <= $total_pages; $i++) {
+        echo '<li class="page-item '.($page == $i ? 'active':'').'"><a class="page-link" href="?page='.$i.'">'.$i.'</a></li>';
+    }
+    $next = $page + 1;
+    echo '<li class="page-item '.($page >= $total_pages ? 'disabled':'').'"><a class="page-link" href="?page='.$next.'">ถัดไป</a></li>';
+    echo '</ul></nav>';
+}
+?>

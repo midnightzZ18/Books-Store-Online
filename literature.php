@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Online Book Store</title>
+    <link rel="icon" type="image/png" href="img/logo-web.png">
     <!-- Bootstrap CSS -->
     <link href="bootstrap/css/bootstrap.min.css" rel="stylesheet" >
     <!-- Option 1: Bootstrap Bundle with Popper -->
@@ -87,9 +88,9 @@
             <div class="col-sm-3"> 
                 <div>
                     <img src="img/<?=$row['image']?>" width="200px" height="250" class="mx-auto mt-3 p-2 my-2 border"> <br>
-                    <h5 class="text-success"><?=$row['book_Name']?> </h5> 
+                    <h5 class="text-success"><?=$row['book_name']?> </h5> 
                     Price:<b class="text-danger"> <?=$row['price']?> </b> Bath <br>
-                    Author: <?=$row['author_Name']?> <br>
+                    Author: <?=$row['author_name']?> <br>
                     <a class="btn btn-outline-info mt-3" href ="detail.php?id=<?=$row['book_id']?>" > รายละเอียด </a>
                     <a class="btn btn-outline-info mt-3" href ="order.php?id=<?=$row['book_id']?>" > เพิ่มลงในตระกร้า </a>
                 </div>

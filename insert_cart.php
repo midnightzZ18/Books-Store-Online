@@ -1,119 +1,72 @@
 <?php
-session_start(); // Start session
-include 'condb.php'; // Include database connection
+session_start();
+include 'condb.php';
 
-// Check if form is submitted
-if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // Retrieve form data
-    $cusName = $_POST['cus_name'];
-    $cusAddress = $_POST['cus_add'];
-    $cusTel = $_POST['cus_tel'];
-    $cusId = $_POST['cus_id'];
-    $cusProv = $_POST['cus_prov'];
-    $cusAmp = $_POST['cus_amp'];
-    $cusDist = $_POST['cus_dist'];
+// 1. รับค่าจากฟอร์ม
+$custName   = mysqli_real_escape_string($conn, $_POST['cus_name']);
+$custTel    = mysqli_real_escape_string($conn, $_POST['cus_tel']);
+$custAddr   = mysqli_real_escape_string($conn, $_POST['cus_add']);
+$cus_id = isset($_POST['cus_id']) && is_numeric($_POST['cus_id']) ? (int)$_POST['cus_id'] : 0;
+$sex        = $_POST['sex'] ?? '';    
+$prov       = $_POST['Ref_prov_id'] ?? '';
+$dist       = $_POST['Ref_dist_id'] ?? '';
+$subdist    = $_POST['Ref_subdist_id'] ?? '';
+$zip        = $_POST['zip_code'] ?? '';
+$coupon_code = $_POST['coupon_code'] ?? '';
 
-    // Initialize final price with the sum price
-    $finalPrice = $_SESSION["sum_price"];
+// รับค่าที่อยู่ละเอียด (ถ้ามี)
+// 1. รับค่าจากฟอร์ม
+$custName    = $_POST['cus_name'];
+$custTel     = $_POST['cus_tel'];
+$custAddr    = $_POST['cus_add'];
+$coupon_code = $_POST['coupon_code'] ?? '';
+$sex         = $_POST['sex'] ?? ''; // รับค่าเพศ
 
-    // Check if a coupon is submitted
-    if (isset($_POST['coupon_code'])) {
-        $couponCode = $_POST['coupon_code'];
-        if (!empty($couponCode)) {
-            // Fetch coupon data from database
-            $sql_coupon = "SELECT * FROM coupons WHERE coupon_code = ?";
-            $stmt = $conn->prepare($sql_coupon);
-            $stmt->bind_param("s", $couponCode);
-            $stmt->execute();
-            $result_coupon = $stmt->get_result();
-            
-            if ($row_coupon = $result_coupon->fetch_assoc()) {
-                // Check if the coupon is active
-                if ($row_coupon['status'] == 1) {
-                    $discount = $row_coupon['discount'];
-                    // Apply discount to final price
-                    $finalPrice = $_SESSION["sum_price"] - $discount;
-                } else {
-                    echo "คูปองไม่สามารถใช้งานได้"; // Coupon cannot be used
-                }
-            } else {
-                echo "คูปองไม่ถูกต้องหรือหมดอายุ"; // Invalid or expired coupon
-            }
+/// 2. คำนวณส่วนลดคูปอง
+$coupon_price = 0;
+if (!empty($coupon_code)) {
+    $sql_cp = "SELECT discount FROM coupons WHERE coupon_code = '$coupon_code'";
+    $res_cp = mysqli_query($conn, $sql_cp);
+    if ($row_cp = mysqli_fetch_array($res_cp)) {
+        $coupon_price = $row_cp['discount'];
+    }
+}
+
+$total_price = ($_SESSION['sum_price'] ?? 0) - $coupon_price;
+if($total_price < 0) $total_price = 0;
+
+// 3. คำนวณยอดสุทธิ
+$total_price = $_SESSION['sum_price'] - $coupon_price;
+if($total_price < 0) $total_price = 0;
+
+// 4. จัดการอัปโหลดรูปภาพสลิป
+$new_file_name = "";
+if (isset($_FILES['image']) && $_FILES['image']['name'] != "") {
+    $ext = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
+    $new_file_name = "slip_" . time() . "." . $ext;
+    copy($_FILES['image']['tmp_name'], "slip/" . $new_file_name);
+}
+
+// 5. บันทึกลง tb_order (จัดลำดับตามโครงสร้างตารางที่คุณให้มา)
+$sql = "INSERT INTO tb_order (cus_id, cus_name, sex, provinces, amphures, districts, zip_code, address, telephone, total_price, order_status, image, coupon_price) 
+        VALUES ('$cus_id', '$custName', '$sex', '$prov', '$dist', '$subdist', '$zip', '$custAddr', '$custTel', '$total_price', '1', '$new_file_name', '$coupon_price')";
+
+if (mysqli_query($conn, $sql)) {
+    $orderID = mysqli_insert_id($conn);
+    // บันทึก order_detail และตัดสต็อก (ส่วนเดิมของคุณ)
+    for ($i = 0; $i <= (int)$_SESSION["intLine"]; $i++) {
+        if (isset($_SESSION["strProductID"][$i]) && $_SESSION["strProductID"][$i] != "") {
+            $p_id = $_SESSION["strProductID"][$i];
+            $qty  = $_SESSION["strQty"][$i];
+            $sql_p = "SELECT price FROM stocks WHERE book_id = '$p_id'";
+            $res_p = mysqli_query($conn, $sql_p);
+            $row_p = mysqli_fetch_array($res_p);
+            $price = $row_p['price'];
+            mysqli_query($conn, "INSERT INTO order_detail(orderID, book_id, orderPrice, orderQty) VALUES('$orderID', '$p_id', '$price', '$qty')");
+            mysqli_query($conn, "UPDATE stocks SET amount = amount - $qty WHERE book_id = '$p_id'");
         }
     }
-
-    // Insert order into database
-    $sql = "INSERT INTO tb_order (cus_name, address, telephone, total_price, order_status, cus_id, provinces, amphures, districts, coupon_price) 
-            VALUES (?, ?, ?, ?, '1', ?, ?, ?, ?, ?)";
-    $stmt = $conn->prepare($sql);
-    $stmt->bind_param("sssssssss", $cusName, $cusAddress, $cusTel, $_SESSION["sum_price"], $cusId, $cusProv, $cusAmp, $cusDist, $finalPrice);
-
-    if ($stmt->execute()) {
-        $orderID = $stmt->insert_id; // Get the inserted order ID
-        $_SESSION["order_id"] = $orderID; // Store order ID in session
-
-        // Insert order details into database
-        for ($i = 0; $i <= (int)$_SESSION["intLine"]; $i++) {
-            if ($_SESSION["strProductID"][$i] != "") {
-                // Retrieve product information
-                $sql1 = "SELECT * FROM stocks WHERE book_id=?";
-                $stmt1 = $conn->prepare($sql1);
-                $stmt1->bind_param("s", $_SESSION["strProductID"][$i]);
-                $stmt1->execute();
-                $result1 = $stmt1->get_result();
-                $row1 = $result1->fetch_assoc();
-
-                $price = $row1['price'];
-                $total = $_SESSION["strQty"][$i] * $price;
-
-                // Insert order detail
-                $sql2 = "INSERT INTO order_detail (orderID, book_id, orderPrice, orderQty, Total)
-                         VALUES (?, ?, ?, ?, ?)";
-                $stmt2 = $conn->prepare($sql2);
-                $stmt2->bind_param("sssss", $orderID, $_SESSION["strProductID"][$i], $price, $_SESSION["strQty"][$i], $total);
-
-                if ($stmt2->execute()) {
-                    // Update stock quantity
-                    $sql3 = "UPDATE stocks SET amount = amount - ?
-                              WHERE book_id = ?";
-                    $stmt3 = $conn->prepare($sql3);
-                    $stmt3->bind_param("ss", $_SESSION["strQty"][$i], $_SESSION["strProductID"][$i]);
-
-                    if ($stmt3->execute()) {
-                        // Redirect to print order page
-                        echo "<script> window.location='print_order.php'; </script>";
-                    } else {
-                        echo "Error updating stock: " . $conn->error;
-                    }
-                } else {
-                    echo "Error inserting order detail: " . $conn->error;
-                }
-            }
-        }
-
-        // Upload image
-        $target_dir = "";
-        $target_file = $target_dir . basename($_FILES["image"]["name"]);
-        move_uploaded_file($_FILES["image"]["tmp_name"], $target_file);
-
-        // Update order table to store image address
-        $update_sql = "UPDATE tb_order SET image=? WHERE orderID=?";
-        $stmt_update = $conn->prepare($update_sql);
-        $stmt_update->bind_param("ss", $target_file, $orderID);
-        $stmt_update->execute();
-
-        echo "บันทึกข้อมูลสำเร็จ";
-    } else {
-        echo "มีข้อผิดพลาดในการบันทึกข้อมูล: " . $conn->error;
-    }
-
-    $stmt->close(); // Close statement
-    mysqli_close($conn); // Close database connection
-    unset($_SESSION["intLine"]); // Unset session variables
-    unset($_SESSION["strProductID"]);
-    unset($_SESSION["strQty"]);
-    unset($_SESSION["sum_price"]);
-} else {
-    echo "เกิดข้อผิดพลาดในการส่งข้อมูล"; // Error in form submission
+    unset($_SESSION["intLine"], $_SESSION["strProductID"], $_SESSION["strQty"], $_SESSION["sum_price"]);
+    echo "<script>alert('สั่งซื้อเรียบร้อย'); window.location='print_order.php?orderID=$orderID';</script>";
 }
 ?>

@@ -3,11 +3,10 @@
     session_start();
 
     // Check if user is logged in as admin
-    if(!isset($_SESSION['admin_name'])){
+   if (!isset($_SESSION['user_name']) || $_SESSION['user_type'] != 'admin') {
         header('location:login_form.php');
         exit;
-    }
-
+   }
     // Check if form data is submitted
     if(isset($_POST['promotion_name']) && isset($_POST['promoStartDate']) && isset($_POST['promoEndDate']) && isset($_POST['detail']) && isset($_FILES['image'])) {
         $promotion_name = $_POST['promotion_name'];

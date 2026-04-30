@@ -1,22 +1,23 @@
 <?php
-include 'condb.php'; // เชื่อมต่อฐานข้อมูล
+include 'condb.php';
+session_start();
 
-// ตรวจสอบว่ามีการส่งค่า orderID มาหรือไม่
-if(isset($_POST['orderID'])) {
-    // รับค่า orderID จาก form
-    $orderID = $_POST['orderID'];
-
-    // อัปเดตสถานะการสั่งซื้อในฐานข้อมูล
-    $sql = "UPDATE tb_order SET order_status = 0 WHERE orderID = $orderID";
-    if ($conn->query($sql) === TRUE) {
-        echo "สถานะการสั่งซื้อถูกเปลี่ยนเป็น ปฏิเสธ สำเร็จ";
-        // Redirect ไปยังหน้า index.php
-        echo "<script>window.location = 'confirm_order.php';</script>";
-    } else {
-        echo "เกิดข้อผิดพลาดในการอัปเดตสถานะการสั่งซื้อ: " . $conn->error;
-    }
+if (!isset($_SESSION['admin_name'])) {
+    header('location:login_form.php');
+    exit;
 }
 
-// ปิดการเชื่อมต่อฐานข้อมูล
-$conn->close();
+if (isset($_GET['id'])) {
+    $orderID = intval($_GET['id']);
+    
+    // อัปเดตสถานะเป็น 0 (ปฏิเสธ/ยกเลิก)
+    $sql = "UPDATE tb_order SET order_status = '0' WHERE orderID = '$orderID'";
+    $result = mysqli_query($conn, $sql);
+
+    if ($result) {
+        echo "<script>alert('ปฏิเสธออเดอร์เรียบร้อยแล้ว'); window.location='confirm_order.php';</script>";
+    } else {
+        echo "<script>alert('เกิดข้อผิดพลาดในการบันทึกข้อมูล'); window.history.back();</script>";
+    }
+}
 ?>

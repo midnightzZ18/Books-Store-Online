@@ -1,39 +1,48 @@
 <?php
+// เปิดการแสดง Error ทั้งหมดเพื่อหาสาเหตุ
+ini_set('display_errors', 1);
+error_reporting(E_ALL);
+
 include 'condb.php';
+session_start();
 
-// ตรวจสอบว่ามีการส่งข้อมูลแบบ POST หรือไม่
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
-    // รับค่าที่ส่งมาจากฟอร์ม
-    $bookName = $_POST['bookName'];
-    $quantity = $_POST['quantity'];
-    $type = $_POST['type'];
-    $price = $_POST['price'];
-    $authorName = $_POST['authorName'];
-    $description = $_POST['description'];
+    // 1. รับค่าและป้องกันการโดน SQL Injection
+    $bookName    = mysqli_real_escape_string($conn, $_POST['bookName']);
+    $authorName  = mysqli_real_escape_string($conn, $_POST['authorName']);
+    $price       = $_POST['price'];
+    $amount      = $_POST['amount'];  // แก้ไข: ตรวจสอบให้แน่ใจว่าชื่อฟิลด์ตรงกับฟอร์ม
+    $type        = $_POST['type']; 
+    $description = mysqli_real_escape_string($conn, $_POST['description']);
 
-    // ตรวจสอบว่ามีการอัปโหลดรูปภาพหรือไม่
-    if(isset($_FILES['bookImage']) && $_FILES['bookImage']['error'] === UPLOAD_ERR_OK) {
-        $image = $_FILES['bookImage']['name'];
-        $image_tmp = $_FILES['bookImage']['tmp_name'];
-        // เลือกโฟลเดอร์ที่ต้องการบันทึกไฟล์รูปภาพ
-        $target_dir = "img/";
-        move_uploaded_file($image_tmp, $target_dir . $image);
+    // 2. จัดการรูปภาพ
+    $filename = $_FILES["bookImage"]["name"];
+    $tempname = $_FILES["bookImage"]["tmp_name"];
+    $folder = "img/";
+
+    // ตรวจสอบว่ามีโฟลเดอร์ img หรือไม่ ถ้าไม่มีให้สร้าง
+    if (!is_dir($folder)) { mkdir($folder, 0777, true); }
+
+    if ($filename != "") {
+        $ext = pathinfo($filename, PATHINFO_EXTENSION);
+        $new_filename = "book_" . time() . "." . $ext; // ตั้งชื่อใหม่กันชื่อซ้ำ
+        if (!move_uploaded_file($tempname, $folder . $new_filename)) {
+            die("Error: ไม่สามารถอัปโหลดรูปภาพได้ ตรวจสอบสิทธิ์ Folder img");
+        }
     } else {
-        // ถ้าไม่มีการอัปโหลดรูปภาพ ให้ใช้รูปภาพเริ่มต้น
-        $image = "default_image.jpg"; // แทนที่ชื่อรูปภาพเริ่มต้นที่คุณต้องการ
+        $new_filename = ""; // กรณีไม่ใส่รูป
     }
 
-    // เพิ่มข้อมูลลงในฐานข้อมูล
-    $sql = "INSERT INTO stocks (book_Name, amount, typebook_id, price, author_Name, image, detail) 
-            VALUES ('$bookName', '$quantity', '$type', '$price', '$authorName', '$image', '$description')";
+    // 3. บันทึกลงตาราง stocks
+    // ลำดับคอลัมน์ตามฐานข้อมูล: book_id, book_name, amount, typebook_id, price, author_name, image, detail
+    $sql = "INSERT INTO stocks (book_name, amount, typebook_id, price, author_name, image, detail) 
+            VALUES ('$bookName', '$amount', '$type', '$price', '$authorName', '$new_filename', '$description')";
 
     if (mysqli_query($conn, $sql)) {
-        echo "เพิ่มสินค้า \"$bookName\" เรียบร้อยแล้ว";
-        echo "<script>window.location.href = 'admin.php';</script>"; // เด้งกลับไปที่หน้า admin.php
+        echo "<script>alert('เพิ่มหนังสือสำเร็จ'); window.location='admin.php';</script>";
     } else {
-        echo "Error: " . $sql . "<br>" . mysqli_error($conn);
+        // ถ้าไม่เข้า จะโชว์ว่าพังเพราะอะไรตรงนี้
+        die("Database Error: " . mysqli_error($conn) . "<br>SQL: " . $sql);
     }
 }
-
-mysqli_close($conn);
 ?>
